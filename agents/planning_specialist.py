@@ -2,6 +2,7 @@ import os
 import streamlit as st
 from google import genai
 from dotenv import load_dotenv
+from pydantic import BaseModel, Field
 
 load_dotenv()
 
