@@ -1,8 +1,9 @@
 import os
 import streamlit as st
 from google import genai
-from dotenv import load_dotenv
 from pydantic import BaseModel, Field
+from typing import List, Optional
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -15,51 +16,41 @@ except Exception:
 
 client = genai.Client(api_key=api_key)
 
-class TaskItem(BaseModel):
-    task_name: str = Field(description="Name of the task")
-    description: str = Field(description="Brief details on what needs to be done")
-    assigned_role: str = Field(description="Who should do this, e.g., Tech Lead or QA Lead")
-    priority: str = Field(description="High, Medium, or Low")
+class Task(BaseModel):
+    task_name: str = Field(description="Name of the task.")
+    description: str = Field(description="Brief details on how to implement this task.")
+    assigned_role: str = Field(description="Recommended role (e.g., Tech Lead, UI/UX, QA).")
+    priority: str = Field(description="Priority level: High, Medium, or Low.")
+
+class Milestone(BaseModel):
+    milestone_title: str = Field(description="Title of the milestone.")
+    timeline: str = Field(description="Estimated timeframe or deadline.")
+    tasks: List[Task] = Field(description="List of tasks required to complete this milestone.")
 
 class ProjectPlanSchema(BaseModel):
-    milestone_name: str = Field(description="Name of the milestone, e.g., Phase 1: Setup")
-    timeline: str = Field(description="Estimated time or deadline for this milestone")
-    tasks: List[TaskItem] = Field(description="List of tasks belonging to this milestone")
+    project_title: str = Field(description="Title of the project.")
+    total_phases: int = Field(description="Total number of implementation phases.")
+    milestones: List[Milestone] = Field(description="Structured milestones and tasks for the hackathon.")
 
-class FullProjectPlan(BaseModel):
-    milestones: List[ProjectPlanSchema] = Field(description="Complete breakdown of milestones and tasks for the hackathon")
+# Ensure Pydantic fully resolves nested model schemas
+ProjectPlanSchema.model_rebuild()
 
-def generate_project_plan(structured_brief_json: str) -> FullProjectPlan:
+def generate_project_plan(brief_data) -> ProjectPlanSchema:
     """
-    Takes the structured brief and generates an actionable milestone and task plan using Gemini.
+    Generates a structured hackathon project plan using Gemini based on the analyzed brief.
     """
-    client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-    
     prompt = f"""
-    You are the Planning Specialist Agent for Project Rescue, an AI project management assistant for a two-person student hackathon team (Tech Lead and QA Lead).
-    Based on the following structured project brief, create a practical, step-by-step hackathon development plan broken down into clear milestones and tasks. 
-    Assign tasks appropriately between the Tech Lead and QA Lead.
-
-    STRUCTURED BRIEF:
-    {structured_brief_json}
+    Create a detailed hackathon project plan and milestone breakdown based on this project brief data:
+    {brief_data}
     """
-
-    models_to_try = ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-2.0-flash"]
     
-    last_exception = None
-    for model_name in models_to_try:
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-                config={
-                    "response_mime_type": "application/json",
-                    "response_schema": FullProjectPlan,
-                },
-            )
-            return response.parsed
-        except Exception as e:
-            last_exception = e
-            continue
-            
-    raise RuntimeError(f"All model attempts failed. Last error: {last_exception}")
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt,
+        config={
+            "response_mime_type": "application/json",
+            "response_schema": ProjectPlanSchema,
+        },
+    )
+    
+    return ProjectPlanSchema.model_validate_json(response.text)
