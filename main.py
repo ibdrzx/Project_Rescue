@@ -1,89 +1,73 @@
 import streamlit as st
-import json
 from agents.brief_analyst import analyze_project_brief
 from agents.planning_specialist import generate_project_plan
 
-# Page Configuration
+# Page configuration
 st.set_page_config(
     page_title="Project Rescue",
-    page_icon="🚀",
+    page_icon="🛟",
     layout="wide"
 )
 
-# App Header
-st.title("🚀 Project Rescue")
-st.markdown("### AI-Driven Project Management Assistant for Hackathons")
-st.write("Paste your raw project brief or idea below. Our AI agents will extract the requirements and build an actionable milestone plan for your team!")
+st.title("🛟 Project Rescue")
+st.subheader("Your AI-driven project management assistant for hackathons")
 
-# Input Text Area
-raw_brief = st.text_area(
-    "📝 Project Brief / Idea Description",
-    placeholder="E.g., We need to build a student event management app using Python and Streamlit...",
-    height=200
+# User input text area
+user_brief = st.text_area(
+    "Enter your rough project brief or idea:",
+    placeholder="e.g., We want to build a web-based platform for students to browse, register, and manage campus events using Python, Streamlit, and SQLite within an 8-week timeframe...",
+    height=150
 )
 
 if st.button("🚀 Analyze & Generate Plan", type="primary"):
-    if not raw_brief.strip():
+    if not user_brief.strip():
         st.warning("⚠️ Please enter a project brief first!")
     else:
-        # Step 1: Brief Analyst Agent
-        with st.status("🔍 Step 1/2: Brief Analyst is parsing your project...", expanded=True) as status:
-            try:
-                brief_data = analyze_project_brief(raw_brief)
-                status.update(label="✅ Brief successfully analyzed!", state="complete", expanded=False)
-            except Exception as e:
-                st.error(f"Error in Brief Analyst: {e}")
-                st.stop()
+        try:
+            # Step 1: Brief Analyst Agent
+            with st.spinner("🔍 Step 1/2: Brief Analyst is parsing your project..."):
+                brief_data = analyze_project_brief(user_brief)
 
-        # Display Structured Brief Results
-        st.subheader("📋 Extracted Project Overview")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown(f"**📌 Title:** {brief_data.project_title}")
-            st.markdown("**🎯 Objectives:**")
-            for obj in brief_data.objectives:
-                st.markdown(f"- {obj}")
-            st.markdown("**📦 Deliverables:**")
-            for deliv in brief_data.main_deliverables:
-                st.markdown(f"- {deliv}")
-
-        with col2:
-            st.markdown("**⚙️ Functional Requirements:**")
-            for req in brief_data.functional_requirements:
-                st.markdown(f"- {req}")
-            if brief_data.constraints:
-                st.markdown("**🔒 Constraints:**")
-                for c in brief_data.constraints:
-                    st.markdown(f"- {c}")
-
-        if brief_data.uncertainties_or_missing_info:
-            st.warning("⚠️ **Ambiguities / Missing Info to Clarify:**")
-            for uncert in brief_data.uncertainties_or_missing_info:
-                st.markdown(f"- {uncert}")
-
-        st.divider()
-
-        # Step 2: Planning Specialist Agent
-        with st.status("🛠️ Step 2/2: Planning Specialist is building your hackathon roadmap...", expanded=True) as status:
-            try:
-                # Pass the JSON representation of the brief to the planner
-                brief_json = brief_data.model_dump_json()
-                plan_data = generate_project_plan(brief_json)
-                status.update(label="✅ Project plan successfully generated!", state="complete", expanded=False)
-            except Exception as e:
-                st.error(f"Error in Planning Specialist: {e}")
-                st.stop()
-
-        # Display Project Plan Results
-        st.subheader("🗺️ Hackathon Development Plan & Tasks")
-        
-        for milestone in plan_data.milestones:
-            with st.expander(f"📌 {milestone.milestone_name} (Timeline: {milestone.timeline})", expanded=True):
-                for task in milestone.tasks:
-                    # Color code priority badges
-                    priority_color = "red" if task.priority.lower() == "high" else "orange" if task.priority.lower() == "medium" else "blue"
+            st.success("✅ Brief analyzed successfully!")
+            
+            # Display Brief Analysis Results
+            st.markdown(f"### 📋 Project Title: {brief_data.project_title}")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("**🎯 Core Objectives:**")
+                for obj in brief_data.objectives:
+                    st.markdown(f"* {obj}")
                     
-                    st.markdown(f"**{task.task_name}**  \n_{task.description}_")
-                    st.markdown(f"👤 **Assigned To:** `{task.assigned_role}` &nbsp;&nbsp;|&nbsp;&nbsp; ⚡ **Priority:** :{priority_color}[{task.priority}]")
-                    st.markdown("---")
+            with col2:
+                st.markdown("**📦 Deliverables:**")
+                for deliv in brief_data.deliverables:
+                    st.markdown(f"* {deliv}")
+
+            if brief_data.missing_info:
+                st.markdown("**⚠️ Missing / Ambiguous Information:**")
+                for info in brief_data.missing_info:
+                    st.markdown(f"* {info}")
+
+            st.markdown("---")
+
+            # Step 2: Planning Specialist Agent
+            with st.spinner("🗺️ Step 2/2: Planning Specialist is building your hackathon roadmap..."):
+                plan_data = generate_project_plan(brief_data)
+
+            st.success("✅ Roadmap generated successfully!")
+            
+            st.markdown(f"## 🚀 Project Roadmap: {plan_data.project_title}")
+            st.markdown(f"**Total Phases:** {plan_data.total_phases}")
+
+            # Display Milestones & Tasks inside interactive expanders
+            for milestone in plan_data.milestones:
+                with st.expander(f"📌 {milestone.milestone_title} (Timeline: {milestone.timeline})"):
+                    for task in milestone.tasks:
+                        st.markdown(f"#### 🔹 {task.task_name}")
+                        st.markdown(f"> *Description:* {task.description}")
+                        st.markdown(f"> **Assigned Role:** `{task.assigned_role}` &nbsp;&nbsp;|&nbsp;&nbsp; **Priority:** `{task.priority}`")
+                        st.markdown("---")
+
+        except Exception as e:
+            st.error(f"❌ An error occurred: {e}")
