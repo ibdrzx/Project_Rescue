@@ -1,4 +1,5 @@
 import os
+import time
 import streamlit as st
 from google import genai
 from pydantic import BaseModel, Field
@@ -37,20 +38,32 @@ ProjectPlanSchema.model_rebuild()
 
 def generate_project_plan(brief_data) -> ProjectPlanSchema:
     """
-    Generates a structured hackathon project plan using Gemini based on the analyzed brief.
+    Generates a structured hackathon project plan using Gemini with automatic 503 retry handling.
     """
     prompt = f"""
     Create a detailed hackathon project plan and milestone breakdown based on this project brief data:
     {brief_data}
     """
     
-    response = client.models.generate_content(
-        model="gemini-3.8-flash",
-        contents=prompt,
-        config={
-            "response_mime_type": "application/json",
-            "response_schema": ProjectPlanSchema,
-        },
-    )
-    
-    return ProjectPlanSchema.model_validate_json(response.text)
+    max_retries = 3
+    delay = 2
+
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model="gemini-3.8-flash",
+                contents=prompt,
+                config={
+                    "response_mime_type": "application/json",
+                    "response_schema": ProjectPlanSchema,
+                },
+            )
+            return ProjectPlanSchema.model_validate_json(response.text)
+            
+        except Exception as e:
+            if "503" in str(e) and attempt < max_retries - 1:
+                time.sleep(delay)
+                delay *= 2
+                continue
+            else:
+                raise e
